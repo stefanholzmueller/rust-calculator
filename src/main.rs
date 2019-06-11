@@ -1,9 +1,9 @@
 use combine::many1;
-use combine::parser::char::digit;
+use combine::parser::char::{char, digit};
+use combine::parser::choice::or;
 use combine::parser::Parser;
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use combine::parser::repeat::Many1;
 
 fn main() {
     let args = std::env::args().skip(1);
@@ -20,25 +20,29 @@ type Num = Ratio<BigInt>;
 
 enum Expr {
     Nat(Num),
+    Plus(Box<Expr>, Box<Expr>),
 }
 
 fn parse(input: String) -> Result<Expr, String> {
     println!("input = {}", input);
     let slice: &str = &input[..];
-    let mut parser: Many1<Vec<_>, _> = many1(digit());
+    let number_parser = many1(digit()).map(parse_number);
+    let plus_parser = (many1(digit()).map(parse_number), char('+'), many1(digit()).map(parse_number)) // TODO remove duplication
+        .map(|(n,_p,o)| Expr::Plus(Box::new(n), Box::new(o)));
+    let mut parser = or(plus_parser, number_parser); // TODO number literals are not parsed anymore
     let result = parser.easy_parse(slice).map(|r| r.0);
-    let expr = result.map(parse_number);
-    return expr.map_err(|e| e.to_string());
+    result.map_err(|e| e.to_string())
 }
 
 fn parse_number(input: Vec<char>) -> Expr {
     let str: String = input.into_iter().collect();
-    let bi: BigInt = str.parse().expect("CRAP");
-    return Expr::Nat(Ratio::new(bi, BigInt::from(1)));
+    let bi: BigInt = str.parse().unwrap();
+    Expr::Nat(Ratio::new(bi, BigInt::from(1)))
 }
 
 fn eval(expr: Expr) -> Ratio<BigInt> {
     match expr {
         Expr::Nat(ratio) => ratio,
+        Expr::Plus(a, b) => eval(*a) + eval(*b)
     }
 }
