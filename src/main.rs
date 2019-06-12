@@ -1,4 +1,4 @@
-use combine::{many1, choice};
+use combine::{many1, choice, attempt};
 use combine::parser::char::{char, digit};
 use combine::parser::Parser;
 use num_bigint::BigInt;
@@ -10,7 +10,7 @@ fn main() {
     let expr_result = parse(input);
     let calc_result = expr_result.map(eval);
     match calc_result {
-        Ok(result) => println!("result = {:?}", result),
+        Ok(result) => println!("result = {}", result.to_string()),
         Err(err) => println!("error: {}", err)
     }
 }
@@ -23,16 +23,15 @@ enum Expr {
 }
 
 fn parse(input: String) -> Result<Expr, String> {
-    println!("input = {}", input);
+    let new_number_parser = || many1(digit()).map(parse_number);
+    let plus_parser = (new_number_parser(), char('+'), new_number_parser())
+        .map(|(n, _p, o)| Expr::Plus(Box::new(n), Box::new(o)));
+    let mut parser = choice((
+        attempt(plus_parser),
+        new_number_parser(),
+    ));
+
     let slice: &str = &input[..];
-    let number_parser = many1(digit()).map(parse_number);
-    let plus_parser = (
-        many1(digit()).map(parse_number), // TODO remove duplication
-        char('+'),
-        many1(digit()).map(parse_number)
-      ).map(|(n, _p, o)| Expr::Plus(Box::new(n), Box::new(o)));
-    let mut parser = choice((plus_parser, number_parser));
-    //let mut parser = or(plus_parser, number_parser); // TODO number literals are not parsed anymore
     let result = parser.easy_parse(slice).map(|r| r.0);
     result.map_err(|e| e.to_string())
 }
@@ -40,7 +39,7 @@ fn parse(input: String) -> Result<Expr, String> {
 fn parse_number(input: Vec<char>) -> Expr {
     let str: String = input.into_iter().collect();
     let bi: BigInt = str.parse().unwrap();
-    Expr::Nat(Ratio::new(bi, BigInt::from(1)))
+    Expr::Nat(Ratio::from_integer(bi))
 }
 
 fn eval(expr: Expr) -> Ratio<BigInt> {
