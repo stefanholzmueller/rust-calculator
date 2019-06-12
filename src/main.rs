@@ -20,14 +20,18 @@ type Num = Ratio<BigInt>;
 enum Expr {
     Nat(Num),
     Plus(Box<Expr>, Box<Expr>),
+    Minus(Box<Expr>, Box<Expr>),
 }
 
 fn parse(input: String) -> Result<Expr, String> {
     let new_number_parser = || many1(digit()).map(parse_number);
     let plus_parser = (new_number_parser(), char('+'), new_number_parser())
-        .map(|(n, _p, o)| Expr::Plus(Box::new(n), Box::new(o)));
+        .map(|(a, _p, b)| Expr::Plus(Box::new(a), Box::new(b)));
+    let minus_parser = (new_number_parser(), char('-'), new_number_parser())
+        .map(|(a, _p, b)| Expr::Minus(Box::new(a), Box::new(b)));
     let mut parser = choice((
         attempt(plus_parser),
+        attempt(minus_parser),
         new_number_parser(),
     ));
 
@@ -35,7 +39,15 @@ fn parse(input: String) -> Result<Expr, String> {
     let result = parser.easy_parse(slice).map(|r| r.0);
     result.map_err(|e| e.to_string())
 }
+/*
+fn new_number_parser() -> Map<Many1<_,_>,_> {
+    return many1(digit()).map(parse_number);
+}
 
+fn new_binary_parser(op: char, f: F) where F: Fn(Num, Num) -> Expr {
+    return (new_number_parser(), char(op), new_number_parser()).map(f);
+}
+*/
 fn parse_number(input: Vec<char>) -> Expr {
     let str: String = input.into_iter().collect();
     let bi: BigInt = str.parse().unwrap();
@@ -45,6 +57,7 @@ fn parse_number(input: Vec<char>) -> Expr {
 fn eval(expr: Expr) -> Ratio<BigInt> {
     match expr {
         Expr::Nat(ratio) => ratio,
-        Expr::Plus(a, b) => eval(*a) + eval(*b)
+        Expr::Plus(a, b) => eval(*a) + eval(*b),
+        Expr::Minus(a, b) => eval(*a) - eval(*b),
     }
 }
